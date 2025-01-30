@@ -1,10 +1,8 @@
-from vdW_structure import VdWStructure
-from multiprocessing import Pool
-from functools import partial
+from vdW_structures.vdW_structure import VdWStructure
+from vdW_structures.unique_structures import UniqueStructureGetter
 from typing import Union, List
 import numpy as np
 import math
-from tqdm import tqdm
 from pymatgen.core.structure import Structure
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core.surface import SlabGenerator
@@ -17,22 +15,6 @@ class VdWHeterostructureGenerator():
     def __init__(self, **kwargs):
         self.sm = StructureMatcher(**kwargs)
         pass
-
-    def is_similar_to_any(self, structure, unique_structures):
-        for unique_structure in unique_structures:
-            if self.sm.fit(structure, unique_structure):
-                return True
-        return False
-
-    def filter_unique_structures(self, structures: List[Structure]):
-        unique_structures = []
-        for structure in structures:
-            with Pool() as pool:
-                similar = pool.starmap(self.is_similar_to_any, 
-                                       [(structure, unique_structures)] * len(structures))
-            if not any(similar):
-                unique_structures.append(structure)
-        return unique_structures
 
     def get_unique_structures(self, structures: List[Structure], **kwargs):
         '''Function that returns only the unique structures (based on PMG StructureMatcher) in a list of pymatgen Structure objects'''
@@ -53,7 +35,9 @@ class VdWHeterostructureGenerator():
     def generate_unique_vdW_heterostructures(self, 
                                       film: VdWStructure, 
                                       substrate: VdWStructure,
-                                      zsl_generator: ZSLGenerator,  
+                                      zsl_generator: ZSLGenerator,
+                                      get_unique: bool=True,
+                                      n_chunks: int=4,   
                                       **kwargs):
         '''Uses Zur's algorithm as implemented in pymatgen's ZSLGenerator to create heterostructure lattices'''
 
@@ -83,11 +67,15 @@ class VdWHeterostructureGenerator():
         interfaces = cib.get_interfaces(default_key, gap=interface_spacing, vacuum_over_film=vacuum_over_film) # Generator object
 
         # Get the unique_interfaces and return them as pymatgen Structure objects
-        unique_interfaces = self.get_unique_structures(interfaces, **kwargs)
-
+        interfaces_list = list(interfaces)
+        if get_unique:
+            usg = UniqueStructureGetter(**kwargs)
+            interfaces_list = usg.filter_unique_with_recursive_chunks(interfaces_list, n_chunks=n_chunks)
+        
         # Get the smallest know gap to use as the minimum vdW spacing
         threshold_tolerance = 1e-4
         minimum_vdW_gap = np.min(film.vdW_spacings + substrate.vdW_spacings + [interface_spacing]) - threshold_tolerance
         unique_vdW_heterostructures = [VdWStructure(
-            unique_interface, minimum_vdW_gap) for unique_interface in unique_interfaces]
+            interface, minimum_vdW_gap) for interface in interfaces_list]
+        
         return unique_vdW_heterostructures

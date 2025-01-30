@@ -6,7 +6,7 @@ from pymatgen.analysis.structure_matcher import StructureMatcher
 
 
 
-class UniqueStructure:
+class UniqueStructureGetter:
     def __init__(self, **kwargs):
         """
         Initialize the UniqueStructure class with a StructureMatcher.
@@ -28,6 +28,7 @@ class UniqueStructure:
         """
         sm = StructureMatcher(**self.matcher_args)  # Create a new matcher for each process
         chunk_unique = []
+        chunk = sorted(chunk, key=len, reverse=True) # To preferentially return smallest objects
 
         # If chunk_is_unique is False, only process chunk sequentially (avoiding nested Pool)
         if not chunk_is_unique:
@@ -60,17 +61,16 @@ class UniqueStructure:
         #chunks = sorted(chunks, key=len)
 
         while len(chunks) > 1:
-            # Merge the smallest and largest chunks
-            smallest = chunks.pop(0)  # Smallest chunk
-            largest = chunks.pop(-1)  # Largest chunk
+            # Merge the first and second chunks
+            first = chunks.pop(0)  
+            second = chunks.pop(0)  
 
-            # Merge the smallest chunk into the largest chunk (chunk_is_unique=True to parallelize)
-            merged = self.filter_unique_chunk(smallest, largest, chunk_is_unique=True)
+            # Merge the second chunk into the first chunk (chunk_is_unique=True to parallelize)
+            merged = self.filter_unique_chunk(second, first, chunk_is_unique=True)
 
             # Re-insert the merged chunk into the sorted list
-            chunks.append(merged)
-            #chunks = sorted(chunks, key=len)  # Re-sort by size
-            print(f"Unique structures: {len(chunks[-1])}")
+            chunks.insert(0, merged)
+            print(f"Unique structures: {len(chunks[0])}")
 
         # The final remaining chunk is the list of unique objects
         return chunks[0]
@@ -79,6 +79,8 @@ class UniqueStructure:
         """
         Main function to filter unique objects using recursive chunking and merging.
         """
+        # Sort the objects by length
+        object_list = sorted(object_list, key=len)
         
         # Initial chunking
         chunks = self.chunk_list(object_list, n_chunks)
@@ -89,11 +91,12 @@ class UniqueStructure:
         # Process each chunk independently in parallel
         with Pool() as pool:
             chunk_results = pool.map(filter_partial, chunks)
-            chunk_results = sorted(chunk_results, key=len)
-            print(f"Unique structures: {len(chunk_results[-1])}")
+            chunk_results = sorted(chunk_results, key=lambda lst: len(min(chunk_results, key=len)))
+            print(f"Unique structures: {len(chunk_results[0])}")
 
         # Recursively merge chunks until only one list of unique objects remains
         unique_objects = self.recursive_merge(chunk_results)
+        unique_objects = sorted(unique_objects, key=len)
         print(f"Unique structures: {len(unique_objects)}")
         
         return unique_objects

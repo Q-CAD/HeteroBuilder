@@ -4,7 +4,7 @@ from pymatgen.core.structure import Structure
 from pymatgen.core.sites import PeriodicSite
 from pymatgen.core.lattice import Lattice
 from ase.geometry.geometry import get_layers
-from layer_shifter import LayerShifter
+from vdW_structures.layer_shifter import LayerShifter
 from pymatgen.io.ase import AseAtomsAdaptor
 from copy import deepcopy
 
