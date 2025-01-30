@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vdW_structures"
+version = "0.1.0"
+description = "Tools to build and modify vdW layered structures"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Ryan Morelock", email = "rym@ornl.gov" }
+]
+dependencies = [
+    "numpy",  # Add your dependencies here
+    "ase",
+    "pymatgen"
+]
+
+[tool.setuptools]
+packages = ["vdW_structures"]  # Ensure this matches your package directory name
