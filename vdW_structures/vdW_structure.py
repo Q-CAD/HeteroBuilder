@@ -223,7 +223,7 @@ class VdWStructure:
         ]))
 
         for new_layer_number_ind, new_layer_number in enumerate(new_layer_numbers):
-            print(self.vdW_layers[new_layer_number])
+            #print(self.vdW_layers[new_layer_number])
             for site_number in self.vdW_layers[new_layer_number]:
                 site_shift = np.multiply(new_layer_number_ind, self.structure.lattice.matrix[2])
                 coords = self.structure[site_number].coords + site_shift

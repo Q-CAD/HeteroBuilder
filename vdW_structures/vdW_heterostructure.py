@@ -3,6 +3,8 @@ from vdW_structures.unique_structures import UniqueStructureGetter
 from typing import Union, List
 import numpy as np
 import math
+import os
+import json
 from pymatgen.core.structure import Structure
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core.surface import SlabGenerator
@@ -10,11 +12,43 @@ from pymatgen.analysis.interfaces.zsl import ZSLGenerator
 from pymatgen.analysis.interfaces.coherent_interfaces import CoherentInterfaceBuilder
 
 
-
 class VdWHeterostructureGenerator():
     def __init__(self, **kwargs):
         self.sm = StructureMatcher(**kwargs)
         pass
+
+    def compute_signed_film_substrate_angle(self, film_sl_vectors, substrate_sl_vectors):
+        """
+        Compute the signed angle between the film and substrate motifs, distinguishing rotations.
+
+        Args:
+            film_sl_vectors (list of list): Superlattice vectors of the film (2D list of 3D vectors).
+            substrate_sl_vectors (list of list): Superlattice vectors of the substrate (2D list of 3D vectors).
+
+        Returns:
+            float: Signed angle in degrees between the film and substrate repeating motifs.
+        """
+        # Convert to numpy arrays and take the first in-plane vectors
+        film_v1 = np.array(film_sl_vectors[0][:2])  # Only consider x, y components
+        sub_v1 = np.array(substrate_sl_vectors[0][:2])
+
+        # Compute angle using atan2 for proper signed angle determination
+        dot_product = np.dot(film_v1, sub_v1)
+        cross_product = np.cross(np.append(film_v1, 0), np.append(sub_v1, 0))  # Append z=0 for cross product
+        angle_radians = np.arctan2(cross_product[2], dot_product)  # Use z-component of cross product
+
+        # Convert to degrees
+        angle_degrees = np.degrees(angle_radians)
+
+        return angle_degrees  # Returns values from -180 to 180 degrees
+    
+    def sort_by_structure_length(self, vdW_heterostructures: List[VdWStructure], heterostructure_properties: List):
+        '''Sorts structures by the number of atoms present'''
+        zipped_heterostructures = zip(vdW_heterostructures, heterostructure_properties)
+        sorted_zipped_heterostructures = sorted(zipped_heterostructures, key=lambda x: len(x[0].structure))
+        s_vdW_heterostructures, s_heterostructure_properties = zip(*sorted_zipped_heterostructures)
+
+        return s_vdW_heterostructures, s_heterostructure_properties
 
     def get_unique_structures(self, structures: List[Structure], **kwargs):
         '''Function that returns only the unique structures (based on PMG StructureMatcher) in a list of pymatgen Structure objects'''
@@ -32,7 +66,7 @@ class VdWHeterostructureGenerator():
                 unique_structures.append(structure)
         return unique_structures
     
-    def generate_unique_vdW_heterostructures(self, 
+    def generate_vdW_heterostructures(self, 
                                       film: VdWStructure, 
                                       substrate: VdWStructure,
                                       zsl_generator: ZSLGenerator,
@@ -77,5 +111,50 @@ class VdWHeterostructureGenerator():
         minimum_vdW_gap = np.min(film.vdW_spacings + substrate.vdW_spacings + [interface_spacing]) - threshold_tolerance
         unique_vdW_heterostructures = [VdWStructure(
             interface, minimum_vdW_gap) for interface in interfaces_list]
+        heterostructure_properties = [interface.interface_properties for interface in interfaces_list]
+
+        # Compute the signed angle between interfaces and add to heterostructure_properties dictionary
+        for heterostructure_property in heterostructure_properties:
+            heterostructure_property['signed_angle'] = self.compute_signed_film_substrate_angle(heterostructure_property['film_sl_vectors'], 
+                                                                                                heterostructure_property['substrate_sl_vectors'])  
         
-        return unique_vdW_heterostructures
+        return self.sort_by_structure_length(unique_vdW_heterostructures, heterostructure_properties)
+
+    def write_heterostructures_data(self, directory, vdW_heterostructures, heterostructure_properties):
+        
+        def convert_ndarrays_to_lists(d):
+            """
+            Recursively convert all numpy ndarray objects in a dictionary to lists.
+
+            Args:
+                d (dict): The input dictionary.
+
+            Returns:
+                dict: The dictionary with all np.ndarray objects converted to lists.
+            """
+            if isinstance(d, dict):
+                return {key: convert_ndarrays_to_lists(value) for key, value in d.items()}
+            elif isinstance(d, list):
+                return [convert_ndarrays_to_lists(item) for item in d]
+            elif isinstance(d, np.ndarray):
+                return d.tolist()  # Convert numpy array to list
+            else:
+                return d  # Return other types unchanged
+
+        len_dct = {}
+        for i, vdW_heterostructure in enumerate(vdW_heterostructures):
+            length = len(vdW_heterostructure.structure)
+            if length in len_dct.keys():
+                len_dct[length] += 1
+            else:
+                len_dct[length] = 0
+            
+            write_path = os.path.join(directory, str(length), str(len_dct[length]))
+            os.makedirs(write_path, exist_ok=True)
+            vdW_heterostructure.structure.to(filename=os.path.join(write_path, 'POSCAR'))
+            
+            with open(os.path.join(write_path, 'interface.json'), 'w') as f:
+                json.dump(convert_ndarrays_to_lists(heterostructure_properties[i]), 
+                          f, indent=4)       
+
+        return 
