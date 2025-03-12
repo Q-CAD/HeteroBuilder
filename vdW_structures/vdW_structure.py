@@ -22,7 +22,7 @@ class VdWStructure:
         self.vdW_layers, self.layer_images, self.vdW_spacings = self.get_vdW_layers(structure)
         #print(self.vdW_layers, self.layer_images, self.vdW_spacings)
         
-        if len(self.vdW_layers) == 1 and self.vdW_spacings[0] < self.minimum_vdW_gap:
+        if len(self.vdW_layers) == 1:
             raise ValueError(f"No van der Waals layers found with a gap of {minimum_vdW_gap} Å.")
         
         self.structure = self.shift_to_vdW_gap(structure, self.vdW_layers, self.layer_images).get_sorted_structure()
