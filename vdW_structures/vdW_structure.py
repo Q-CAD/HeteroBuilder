@@ -23,7 +23,11 @@ class VdWStructure:
         #print(self.vdW_layers, self.layer_images, self.vdW_spacings)
         
         if len(self.vdW_layers) == 1:
-            raise ValueError(f"No van der Waals layers found with a gap of {minimum_vdW_gap} Å.")
+            try: 
+                if self.vdW_spacings[0] < self.minimum_vdW_gap:
+                    pass
+            except:
+                raise ValueError(f"No van der Waals layers found with a gap of {minimum_vdW_gap} Å.")
         
         self.structure = self.shift_to_vdW_gap(structure, self.vdW_layers, self.layer_images).get_sorted_structure()
         self.vdW_layers, self.layer_images, self.vdW_spacings = self.get_vdW_layers(self.structure)
@@ -108,7 +112,7 @@ class VdWStructure:
             vdW_atom_layers = [atom_layer_indices[j] for j in self.vdW_layers[i]]
             min_vdW_atom_layer_number = np.min(vdW_atom_layers) # Get the minimum layer
             if min_vdW_atom_layer_number == 0: # Handle bottom layer shift differently
-                bottom_shift = solve_shift[ii]              
+                bottom_shift = solve_shift[ii]
             else:
                 atoms_copy = self.layer_shifter.structure_shift(atoms_copy, 
                                                             layer_number=min_vdW_atom_layer_number, 
@@ -135,11 +139,12 @@ class VdWStructure:
                                          to_unit_cell=False
             )
 
+        
         if bottom_shift:
             shifted_atoms = shifted_structure.to_ase_atoms()
             shifted_atoms.center(vacuum=0.5 * bottom_shift, axis=2)
             shifted_structure = self.ase_atoms_adaptor.get_structure(shifted_atoms)
-
+        
         if not shifted_structure.is_valid():
             print(f"Warning: the applied shift(s) has made this structure invalid. Proceed with caution!")
             
@@ -160,11 +165,13 @@ class VdWStructure:
         vdW_spacings = []
 
         z_magnitude = structure.lattice.c
-        all_zs, all_indices = [s.coords[2] for s in structure], [i for i, site in enumerate(structure)]
-        zipped = zip(all_zs, all_indices)
+        atoms = structure.to_ase_atoms()
+        layers, layer_dist = get_layers(atoms, (0, 0, 1))
+        site_values = [layer_dist[layers[i]] for i in range(len(atoms))]
+        zipped = zip(site_values, [i for i in range(len(atoms))])
         s_zipped = sorted(zipped, key=lambda x: x[0])
         zs, idxs = zip(*s_zipped)
-        diffs = [z_magnitude - zs[-1] + zs[0]] + [zs[i+1] - zs[i] for i in range(len(zs)-1)]
+        diffs = [structure.lattice.c - zs[-1] + zs[0]] + [zs[i+1] - zs[i] for i in range(len(zs)-1)]
 
         count = 0
         for i, diff in enumerate(diffs):

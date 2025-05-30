@@ -1,6 +1,7 @@
 from vdW_structures.vdW_structure import VdWStructure
 from vdW_structures.unique_structures import UniqueStructureGetter
 from typing import Union, List
+from scipy.linalg import sqrtm
 import numpy as np
 import math
 import os
@@ -16,6 +17,21 @@ class VdWHeterostructureGenerator():
     def __init__(self, **kwargs):
         self.sm = StructureMatcher(**kwargs)
         pass
+
+    def polar_decomposition(self, film_sl_vectors, substrate_sl_vectors):
+        s1, s2 = substrate_sl_vectors[0][:2], substrate_sl_vectors[1][:2]
+        f1, f2 = film_sl_vectors[0][:2], film_sl_vectors[1][:2]
+
+        S = np.column_stack([s1, s2])   # shape (2,2)
+        F = np.column_stack([f1, f2])   # shape (2,2)
+
+        M = F @ np.linalg.inv(S)
+        U = sqrtm(M.T @ M)    # shape (2,2), symmetric by construction
+        R = M @ np.linalg.inv(U)
+        angle_rad = np.arctan2(R[1,0], R[0,0])
+        angle_deg = np.degrees(angle_rad)
+
+        return angle_deg
 
     def compute_signed_film_substrate_angle(self, film_sl_vectors, substrate_sl_vectors):
         """
@@ -113,11 +129,13 @@ class VdWHeterostructureGenerator():
             interface, minimum_vdW_gap) for interface in interfaces_list]
         heterostructure_properties = [interface.interface_properties for interface in interfaces_list]
 
-        # Compute the signed angle between interfaces and add to heterostructure_properties dictionary
+        # Compute the signed and decomposition angles between interfaces and add to heterostructure_properties dictionary
         for heterostructure_property in heterostructure_properties:
             heterostructure_property['signed_angle'] = self.compute_signed_film_substrate_angle(heterostructure_property['film_sl_vectors'], 
                                                                                                 heterostructure_property['substrate_sl_vectors'])  
-        
+            heterostructure_property['decomposition_angle'] = self.polar_decomposition(heterostructure_property['film_sl_vectors'],
+                                                                                                heterostructure_property['substrate_sl_vectors'])
+
         return self.sort_by_structure_length(unique_vdW_heterostructures, heterostructure_properties)
 
     def write_heterostructures_data(self, directory, vdW_heterostructures, heterostructure_properties):
