@@ -14,7 +14,9 @@ authors = [
 dependencies = [
     "numpy",  # Add your dependencies here
     "ase",
-    "pymatgen"
+    "jupyter",
+    "pymatgen",
+    "py3Dmol"
 ]
 
 [tool.setuptools]

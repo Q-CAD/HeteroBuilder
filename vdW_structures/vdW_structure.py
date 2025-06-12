@@ -10,7 +10,7 @@ from copy import deepcopy
 
 
 class VdWStructure:
-    def __init__(self, structure: Structure, minimum_vdW_gap: Union[int, float]):
+    def __init__(self, structure: Structure, minimum_vdW_gap: Union[int, float], shift_gap=True):
         """Identify van der Waals layers based on if the spacing between atomic layers exceeds the minimum_vdW_gap."""
         if not isinstance(structure, Structure):
             raise TypeError(f"Expected a pymatgen Structure object, got {type(structure).__name__}")
@@ -29,7 +29,11 @@ class VdWStructure:
             except:
                 raise ValueError(f"No van der Waals layers found with a gap of {minimum_vdW_gap} Å.")
         
-        self.structure = self.shift_to_vdW_gap(structure, self.vdW_layers, self.layer_images).get_sorted_structure()
+        if shift_gap:
+            self.structure = self.shift_to_vdW_gap(structure, self.vdW_layers, self.layer_images).get_sorted_structure()
+        else:
+            self.structure = structure 
+ 
         self.vdW_layers, self.layer_images, self.vdW_spacings = self.get_vdW_layers(self.structure)
         #print(self.vdW_layers, self.layer_images, self.vdW_spacings)
         
@@ -296,4 +300,11 @@ class VdWStructure:
                 
         no_spacing_extended_structure = self._add_vdW_sites(new_layer_numbers)
         correct_spacing_structure = self._rescale_vdW_lattice(new_layer_numbers, no_spacing_extended_structure)
+
+        # Might need to adjust this depending on the gap location        
+        correct_spacing_vdW = VdWStructure(correct_spacing_structure.get_sorted_structure(), self.minimum_vdW_gap)
+        correct_spacing_atoms = correct_spacing_structure.to_ase_atoms()
+        correct_spacing_atoms.center(axis=2, vacuum=correct_spacing_vdW.vdW_spacings[0]/2) # Set to bottom gap
+        correct_spacing_structure = self.ase_atoms_adaptor.get_structure(correct_spacing_atoms)
+        
         return VdWStructure(correct_spacing_structure.get_sorted_structure(), self.minimum_vdW_gap)
