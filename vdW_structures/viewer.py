@@ -1,7 +1,7 @@
 import py3Dmol
 from pymatgen.core.periodic_table import Element 
 
-def view_structure(structure, color_map):
+def view_structure(structure, color_map, look='b'):
     view = py3Dmol.view(width=800, height=800)
     cif_str = structure.to(fmt="cif")
     view.addModel(cif_str, "cif")
