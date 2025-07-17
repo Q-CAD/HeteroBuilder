@@ -17,10 +17,14 @@ class VdWStructure:
         if not isinstance(minimum_vdW_gap, (float, int)):
             raise TypeError(f"Expected a float/int for minimum_vdW_gap, got {type(minimum_vdW_gap).__name__}")
 
+        # Map all atoms back to unit cell
         self.minimum_vdW_gap = minimum_vdW_gap
+        structure = Structure(lattice=structure.lattice, 
+                              species=[site.species for site in structure], 
+                              coords=[site.frac_coords for site in structure], 
+                              site_properties=structure.site_properties, to_unit_cell=True)
         
         self.vdW_layers, self.layer_images, self.vdW_spacings = self.get_vdW_layers(structure)
-        #print(self.vdW_layers, self.layer_images, self.vdW_spacings)
         
         if len(self.vdW_layers) == 1:
             try: 
@@ -35,7 +39,6 @@ class VdWStructure:
             self.structure = structure 
  
         self.vdW_layers, self.layer_images, self.vdW_spacings = self.get_vdW_layers(self.structure)
-        #print(self.vdW_layers, self.layer_images, self.vdW_spacings)
         
         self.ase_atoms_adaptor = AseAtomsAdaptor()
         self.layer_shifter = LayerShifter()
