@@ -1,4 +1,7 @@
 import py3Dmol
+import time
+import matplotlib.pyplot as plt
+from IPython.display import clear_output, display
 from pymatgen.core.periodic_table import Element 
 
 def view_structure(structure, color_map, look='b'):
@@ -26,3 +29,21 @@ def view_structure(structure, color_map, look='b'):
     # else 'c' or anything else: keep the default
 
     return view.show()
+
+def animate_view_structure(structure_list, color_map, interval=1.0, look='b'):
+    """
+    Display an animation in Jupyter by replacing the previous plot with each Structure image.
+
+    Args:
+        structure_list (List[pymatgen.Structure]): list of structures to display
+        interval (float): seconds between frames
+    """
+    
+    fig, ax = plt.subplots()
+    for i, structure in enumerate(structure_list):
+        clear_output(wait=True)
+        fig = view_structure(structure, color_map, look=look)
+        plt.close(fig)
+        time.sleep(interval)
+    
+    return 
