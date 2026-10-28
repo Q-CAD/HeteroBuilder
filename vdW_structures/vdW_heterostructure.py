@@ -18,20 +18,39 @@ class VdWHeterostructureGenerator():
         self.sm = StructureMatcher(**kwargs)
         pass
 
-    def polar_decomposition(self, film_sl_vectors, substrate_sl_vectors):
-        s1, s2 = substrate_sl_vectors[0][:2], substrate_sl_vectors[1][:2]
-        f1, f2 = film_sl_vectors[0][:2], film_sl_vectors[1][:2]
-
-        S = np.column_stack([s1, s2])   # shape (2,2)
-        F = np.column_stack([f1, f2])   # shape (2,2)
-
-        M = F @ np.linalg.inv(S)
-        U = sqrtm(M.T @ M)    # shape (2,2), symmetric by construction
-        R = M @ np.linalg.inv(U)
-        angle_rad = np.arctan2(R[1,0], R[0,0])
-        angle_deg = np.degrees(angle_rad)
-
-        return angle_deg
+    def polar_decomposition(self, film_sl_vectors, substrate_sl_vectors, mapping='film_to_sub'):
+        def to_col_matrix(vs):
+            vs = np.asarray(vs, dtype=float)
+            # Accept formats: list of two vectors, or shape (2,2) with rows as vectors, or (2,3) etc.
+            if vs.ndim == 1 and vs.size == 4:
+                vs = vs.reshape((2,2))
+            if vs.shape[0] == 2 and vs.shape[1] >= 2:
+                # assume rows are vectors -> take first two components of each row and make columns
+                v1 = vs[0,:2]
+                v2 = vs[1,:2]
+                return np.column_stack([v1, v2])
+            # else assume iterable of two vectors
+            v1 = np.asarray(vs[0], dtype=float)[:2]
+            v2 = np.asarray(vs[1], dtype=float)[:2]
+            return np.column_stack([v1, v2])
+    
+        A_film = to_col_matrix(film_sl_vectors)
+        A_sub = to_col_matrix(substrate_sl_vectors)
+    
+        if mapping == 'film_to_sub':
+            M = A_sub @ np.linalg.inv(A_film)
+        elif mapping == 'sub_to_film':
+            M = A_film @ np.linalg.inv(A_sub)
+        else:
+            raise ValueError("mapping must be 'film_to_sub' or 'sub_to_film'")
+    
+        U_svd, svals, Vt = np.linalg.svd(M)
+        R = U_svd @ Vt
+        detR = np.linalg.det(R)
+        theta_raw = np.arctan2(R[1,0], R[0,0])
+        angle_deg = np.degrees(theta_raw)
+    
+        return angle_deg, detR
 
     def compute_signed_film_substrate_angle(self, film_sl_vectors, substrate_sl_vectors):
         """
@@ -133,8 +152,9 @@ class VdWHeterostructureGenerator():
         for heterostructure_property in heterostructure_properties:
             heterostructure_property['signed_angle'] = self.compute_signed_film_substrate_angle(heterostructure_property['film_sl_vectors'], 
                                                                                                 heterostructure_property['substrate_sl_vectors'])  
-            heterostructure_property['decomposition_angle'] = self.polar_decomposition(heterostructure_property['film_sl_vectors'],
-                                                                                                heterostructure_property['substrate_sl_vectors'])
+            decomp_angle, detR = self.polar_decomposition(heterostructure_property['film_sl_vectors'], heterostructure_property['substrate_sl_vectors'])
+            heterostructure_property['decomposition_angle'] = decomp_angle
+            heterostructure_property['determinant'] = detR
 
         return self.sort_by_structure_length(unique_vdW_heterostructures, heterostructure_properties)
 
