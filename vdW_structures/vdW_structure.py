@@ -260,10 +260,18 @@ class VdWStructure:
         """Correct the vdW spacing in the new structure with the extended lattice."""
         new_structure_atoms = new_structure.to_ase_atoms()
         new_layers, new_shifts, new_spacings = self.get_vdW_layers(new_structure)
-        new_indices, new_levels = get_layers(new_structure_atoms, (0, 0, 1))
 
         # Perform the correct layer shifts for each layer
         for upper_layer_ind, upper_layer_number in enumerate(new_layers[1:]):  # Skip bottom layer
+            # Recompute get_layers() fresh against the current (already-shifted-so-far) atoms on
+            # every iteration. Each structure_shift() call below physically moves an earlier
+            # blob, which changes how many distinct ASE levels fall below any later boundary; a
+            # rank computed once up front can drift out from under its blob once atoms within a
+            # layer aren't at bit-identical z (e.g. a thermally-displaced/MD structure), cutting
+            # a later shift through the wrong atoms. upper_layer_number (atom indices from the
+            # gap-threshold-based get_vdW_layers) stays a stable reference throughout -- only the
+            # ASE rank lookup for that known atom needs refreshing.
+            new_indices, new_levels = get_layers(new_structure_atoms, (0, 0, 1))
             shift_layer_number = new_indices[upper_layer_number[0]]
             layer_to_get_shift = new_layer_numbers[upper_layer_ind + 1]
             shift = self.vdW_spacings[layer_to_get_shift]
